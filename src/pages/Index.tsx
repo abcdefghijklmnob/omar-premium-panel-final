@@ -236,7 +236,7 @@ const Index = () => {
               </div>
 
               <div className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 text-right text-sm leading-7 text-amber-100">
-                localhost links are only for development and will not work in IPTV apps.
+                localhost links are only for development and will not work in IPTV apps. استخدم رابط النشر الحقيقي للتطبيق مثل Vercel، ولا تستخدم Supabase كـ Server URL داخل IBO Player.
               </div>
 
               <div className="space-y-4">
@@ -361,6 +361,8 @@ const Index = () => {
                   <div>
                     <p className="text-xs text-slate-400">Server URL</p>
                     <p className="mt-1 break-all text-sm text-white" dir="ltr">{data.server.baseUrl}</p>
+                    <p className="mt-1 text-xs text-slate-500">هذا يجب أن يكون رابط Vercel أو دومينك العام.</p>
+
                   </div>
                   <div>
                     <p className="text-xs text-slate-400">Username</p>

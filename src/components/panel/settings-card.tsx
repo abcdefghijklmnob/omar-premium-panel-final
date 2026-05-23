@@ -43,7 +43,7 @@ export function SettingsCard({ server, onSave, disabled }: SettingsCardProps) {
             <div>
               <p className="font-medium text-amber-200">تنبيه مهم</p>
               <p className="mt-2 text-sm leading-7 text-amber-100/90">
-                localhost links are only for development and will not work in IPTV apps.
+                localhost links are only for development and will not work in IPTV apps. استخدم رابط النشر الحقيقي مثل Vercel أو دومين عام، وليس Supabase edge runtime.
               </p>
             </div>
           </div>
@@ -66,13 +66,13 @@ export function SettingsCard({ server, onSave, disabled }: SettingsCardProps) {
 
         <div className="grid gap-3 rounded-3xl border border-white/10 bg-white/5 p-4 text-sm md:grid-cols-2">
           <div>
-            <p className="text-slate-400">Configured Base URL</p>
+            <p className="text-slate-400">Configured Public App URL</p>
             <p className="mt-1 break-all text-white" dir="ltr">
               {server.configuredBaseUrl || "غير محدد بعد"}
             </p>
           </div>
           <div>
-            <p className="text-slate-400">Effective API Base URL</p>
+            <p className="text-slate-400">Current IPTV Server URL</p>
             <p className="mt-1 break-all text-white" dir="ltr">
               {server.baseUrl}
             </p>

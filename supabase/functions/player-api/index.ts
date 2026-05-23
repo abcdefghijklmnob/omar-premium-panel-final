@@ -34,7 +34,8 @@ serve(async (req) => {
   const action = url.searchParams.get("action");
 
   try {
-    const baseUrl = await resolveBaseUrl(supabase, req);
+    const baseUrl = await resolveBaseUrl(supabase);
+
     const auth = await validateIptvUser(supabase, username, password);
 
     if (!auth.ok) {

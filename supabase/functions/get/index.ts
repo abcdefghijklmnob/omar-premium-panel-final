@@ -27,7 +27,8 @@ serve(async (req) => {
       });
     }
 
-    const baseUrl = await resolveBaseUrl(supabase, req);
+    const baseUrl = await resolveBaseUrl(supabase);
+
     const { data } = await supabase
       .from("live_streams")
       .select("id, name, logo_url, category_id, live_categories(name)")

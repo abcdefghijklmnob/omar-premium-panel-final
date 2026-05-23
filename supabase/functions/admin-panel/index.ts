@@ -1,33 +1,33 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 
 import { validateAdmin } from "../_shared/auth.ts";
-import { resolveBaseUrl } from "../_shared/base-url.ts";
+import { DEFAULT_PUBLIC_BASE_URL, resolveBaseUrl } from "../_shared/base-url.ts";
 import { createAdminClient } from "../_shared/client.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { isPublicBaseUrl, isSafeHttpUrl, json, normalizeBaseUrl } from "../_shared/utils.ts";
 
-async function buildServerSettings(supabase: any, req: Request, firstActiveStreamId?: number | null) {
+async function buildServerSettings(supabase: any, firstActiveStreamId?: number | null) {
   const { data } = await supabase.from("settings").select("key, value").in("key", ["base_url", "server_name"]);
   const settingsMap = Object.fromEntries((data ?? []).map((item: any) => [item.key, item.value]));
   const storedBaseUrl = settingsMap.base_url?.trim() ?? "";
-  const resolvedBaseUrl = await resolveBaseUrl(supabase, req);
+  const effectiveBaseUrl = await resolveBaseUrl(supabase);
   const liveStreamId = firstActiveStreamId ?? 1;
-  const effectiveBaseUrl = storedBaseUrl && !storedBaseUrl.includes("YOUR-DOMAIN") ? normalizeBaseUrl(storedBaseUrl) : resolvedBaseUrl;
-  const isLocalhostBaseUrl = /localhost|127\.0\.0\.1|0\.0\.0\.0/.test(effectiveBaseUrl);
+  const isConfigured = Boolean(storedBaseUrl && !storedBaseUrl.includes("YOUR-DOMAIN"));
 
   return {
     brandName: settingsMap.server_name?.trim() || "OMAR PREMIUM PANEL",
-    configuredBaseUrl: storedBaseUrl,
+    configuredBaseUrl: isConfigured ? normalizeBaseUrl(storedBaseUrl) : "",
     baseUrl: effectiveBaseUrl,
-    isConfigured: Boolean(storedBaseUrl && !storedBaseUrl.includes("YOUR-DOMAIN")),
-    isLocalhostBaseUrl,
-    warning: isLocalhostBaseUrl
-      ? "localhost links are only for development and will not work in IPTV apps."
-      : null,
+    isConfigured,
+    isLocalhostBaseUrl: false,
+    warning: isConfigured
+      ? null
+      : "Set your published Vercel or public domain in Server Base URL. Supabase is the database only and is not the IPTV Server URL.",
     playerApi: `${effectiveBaseUrl}/player_api.php?username=testuser&password=testpass`,
     m3u: `${effectiveBaseUrl}/get.php?username=testuser&password=testpass&type=m3u_plus&output=m3u8`,
     xmltv: `${effectiveBaseUrl}/xmltv.php?username=testuser&password=testpass`,
     live: `${effectiveBaseUrl}/live/testuser/testpass/${liveStreamId}.ts`,
+    placeholderBaseUrl: DEFAULT_PUBLIC_BASE_URL,
   };
 }
 
@@ -99,7 +99,7 @@ serve(async (req) => {
           .maybeSingle(),
       ]);
 
-      const server = await buildServerSettings(supabase, req, firstActiveStreamResult.data?.id ?? null);
+      const server = await buildServerSettings(supabase, firstActiveStreamResult.data?.id ?? null);
 
       return json(
         {
@@ -160,8 +160,9 @@ serve(async (req) => {
         .limit(1)
         .maybeSingle();
 
-      const server = await buildServerSettings(supabase, req, firstActiveStream?.id ?? null);
+      const server = await buildServerSettings(supabase, firstActiveStream?.id ?? null);
       return json({ server }, 200, corsHeaders);
+
     }
 
     if (action === "create_user") {

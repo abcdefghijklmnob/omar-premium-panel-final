@@ -1,6 +1,8 @@
 import { normalizeBaseUrl } from "./utils.ts";
 
-export async function resolveBaseUrl(supabase: any, req: Request) {
+export const DEFAULT_PUBLIC_BASE_URL = "https://YOUR-DOMAIN.com";
+
+export async function resolveBaseUrl(supabase: any) {
   const { data } = await supabase.from("settings").select("value").eq("key", "base_url").maybeSingle();
   const configuredBaseUrl = data?.value?.trim();
 
@@ -8,10 +10,5 @@ export async function resolveBaseUrl(supabase: any, req: Request) {
     return normalizeBaseUrl(configuredBaseUrl);
   }
 
-  const forwardedProto = req.headers.get("x-forwarded-proto");
-  const forwardedHost = req.headers.get("x-forwarded-host");
-  const host = forwardedHost ?? req.headers.get("host") ?? new URL(req.url).host;
-  const proto = forwardedProto ?? "https";
-
-  return `${proto}://${host}`;
+  return DEFAULT_PUBLIC_BASE_URL;
 }
