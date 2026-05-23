@@ -2,6 +2,22 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
+      "source": "/player_api.php",
+      "destination": "https://gsfzfsylnrirrhdtvjmg.supabase.co/functions/v1/player-api"
+    },
+    {
+      "source": "/get.php",
+      "destination": "https://gsfzfsylnrirrhdtvjmg.supabase.co/functions/v1/get"
+    },
+    {
+      "source": "/xmltv.php",
+      "destination": "https://gsfzfsylnrirrhdtvjmg.supabase.co/functions/v1/xmltv"
+    },
+    {
+      "source": "/live/:username/:password/:streamId.ts",
+      "destination": "https://gsfzfsylnrirrhdtvjmg.supabase.co/functions/v1/live-proxy?username=:username&password=:password&stream_id=:streamId"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
