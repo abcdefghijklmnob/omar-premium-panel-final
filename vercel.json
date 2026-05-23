@@ -3,19 +3,19 @@
   "rewrites": [
     {
       "source": "/player_api.php",
-      "destination": "https://gsfzfsylnrirrhdtvjmg.supabase.co/functions/v1/player-api"
+      "destination": "/api/player-api"
     },
     {
       "source": "/get.php",
-      "destination": "https://gsfzfsylnrirrhdtvjmg.supabase.co/functions/v1/get"
+      "destination": "/api/get"
     },
     {
       "source": "/xmltv.php",
-      "destination": "https://gsfzfsylnrirrhdtvjmg.supabase.co/functions/v1/xmltv"
+      "destination": "/api/xmltv"
     },
     {
       "source": "/live/:username/:password/:streamId.ts",
-      "destination": "https://gsfzfsylnrirrhdtvjmg.supabase.co/functions/v1/live-proxy?username=:username&password=:password&stream_id=:streamId"
+      "destination": "/api/live-proxy?username=:username&password=:password&stream_id=:streamId"
     },
     {
       "source": "/(.*)",

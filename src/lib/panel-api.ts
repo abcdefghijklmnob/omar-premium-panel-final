@@ -1,5 +1,6 @@
-const FUNCTIONS_BASE_URL = "https://gsfzfsylnrirrhdtvjmg.supabase.co/functions/v1";
-const ADMIN_PANEL_URL = `${FUNCTIONS_BASE_URL}/admin-panel`;
+const SUPABASE_URL = "https://gsfzfsylnrirrhdtvjmg.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdzZnpmc3lsbnJpcnJoZHR2am1nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1NzY5MjgsImV4cCI6MjA5NTE1MjkyOH0.31h7kDHADeH_65pgvVyrmvZl219OUV6WMMEL5jQBi1U";
+const RPC_BASE_URL = `${SUPABASE_URL}/rest/v1/rpc`;
 
 export type AdminCredentials = {
   username: string;
@@ -17,6 +18,7 @@ export type ServerSettings = {
   m3u: string;
   xmltv: string;
   live: string;
+  placeholderBaseUrl?: string;
 };
 
 export type DashboardData = {
@@ -69,52 +71,54 @@ export type DashboardData = {
   };
 };
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const text = await response.text();
-  const payload = text ? JSON.parse(text) : {};
-
-  if (!response.ok) {
-    throw new Error(payload.error || "Request failed");
-  }
-
-  return payload as T;
-}
-
-async function callAdminPanel<T>(body: Record<string, unknown>, credentials?: AdminCredentials) {
-  const response = await fetch(ADMIN_PANEL_URL, {
+async function callRpc<T>(functionName: string, payload: Record<string, unknown>): Promise<T> {
+  const response = await fetch(`${RPC_BASE_URL}/${functionName}`, {
     method: "POST",
     headers: {
+      apikey: SUPABASE_PUBLISHABLE_KEY,
+      Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
       "Content-Type": "application/json",
-      ...(credentials
-        ? {
-            "x-admin-username": credentials.username,
-            "x-admin-password": credentials.password,
-          }
-        : {}),
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   });
 
-  return parseResponse<T>(response);
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : null;
+
+  if (!response.ok) {
+    throw new Error(data?.message || data?.error || data?.details || "Request failed");
+  }
+
+  return data as T;
 }
 
-export function loginAdmin(credentials: AdminCredentials) {
-  return callAdminPanel<{ admin: DashboardData["admin"] }>({
-    action: "login",
-    username: credentials.username,
-    password: credentials.password,
+export async function loginAdmin(credentials: AdminCredentials) {
+  const admin = await callRpc<DashboardData["admin"]>("admin_login", {
+    p_username: credentials.username,
+    p_password: credentials.password,
   });
+
+  return { admin };
 }
 
 export function getDashboard(credentials: AdminCredentials) {
-  return callAdminPanel<DashboardData>({ action: "dashboard" }, credentials);
+  return callRpc<DashboardData>("admin_dashboard", {
+    p_username: credentials.username,
+    p_password: credentials.password,
+  });
 }
 
-export function updateServerBaseUrl(credentials: AdminCredentials, baseUrl: string) {
-  return callAdminPanel<{ server: ServerSettings }>({ action: "update_settings", base_url: baseUrl }, credentials);
+export async function updateServerBaseUrl(credentials: AdminCredentials, baseUrl: string) {
+  const server = await callRpc<ServerSettings>("admin_update_base_url", {
+    p_username: credentials.username,
+    p_password: credentials.password,
+    p_base_url: baseUrl,
+  });
+
+  return { server };
 }
 
-export function createIptvUser(
+export async function createIptvUser(
   credentials: AdminCredentials,
   payload: {
     username: string;
@@ -125,17 +129,36 @@ export function createIptvUser(
     notes?: string;
   },
 ) {
-  return callAdminPanel({ action: "create_user", ...payload }, credentials);
+  const user = await callRpc("admin_create_user", {
+    p_username: credentials.username,
+    p_password: credentials.password,
+    p_new_username: payload.username,
+    p_new_password: payload.password,
+    p_status: payload.status,
+    p_expiry_date: payload.expiry_date,
+    p_max_connections: payload.max_connections,
+    p_notes: payload.notes ?? "",
+  });
+
+  return { user };
 }
 
-export function createCategory(
+export async function createCategory(
   credentials: AdminCredentials,
   payload: { name: string; sort_order: number; image_url?: string },
 ) {
-  return callAdminPanel({ action: "create_category", ...payload }, credentials);
+  const category = await callRpc("admin_create_category", {
+    p_username: credentials.username,
+    p_password: credentials.password,
+    p_name: payload.name,
+    p_sort_order: payload.sort_order,
+    p_image_url: payload.image_url ?? "",
+  });
+
+  return { category };
 }
 
-export function createStream(
+export async function createStream(
   credentials: AdminCredentials,
   payload: {
     name: string;
@@ -146,5 +169,16 @@ export function createStream(
     sort_order: number;
   },
 ) {
-  return callAdminPanel({ action: "create_stream", ...payload }, credentials);
+  const stream = await callRpc("admin_create_stream", {
+    p_username: credentials.username,
+    p_password: credentials.password,
+    p_name: payload.name,
+    p_stream_url: payload.stream_url,
+    p_logo_url: payload.logo_url ?? "",
+    p_category_id: payload.category_id,
+    p_status: payload.status,
+    p_sort_order: payload.sort_order,
+  });
+
+  return { stream };
 }
