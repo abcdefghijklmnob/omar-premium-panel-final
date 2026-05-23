@@ -34,3 +34,40 @@ export function isSafeHttpUrl(value: string) {
     return false;
   }
 }
+
+export function normalizeBaseUrl(value: string) {
+  return value.trim().replace(/\/$/, "");
+}
+
+export function isPublicBaseUrl(value: string) {
+  try {
+    const normalized = normalizeBaseUrl(value);
+    const url = new URL(normalized);
+    const hostname = url.hostname.toLowerCase();
+
+    if (!(url.protocol === "http:" || url.protocol === "https:")) {
+      return false;
+    }
+
+    if (url.pathname !== "" && url.pathname !== "/") {
+      return false;
+    }
+
+    if (url.search || url.hash) {
+      return false;
+    }
+
+    if (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "0.0.0.0" ||
+      hostname.endsWith(".local")
+    ) {
+      return false;
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}

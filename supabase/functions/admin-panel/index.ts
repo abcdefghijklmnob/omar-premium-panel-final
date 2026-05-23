@@ -4,7 +4,32 @@ import { validateAdmin } from "../_shared/auth.ts";
 import { resolveBaseUrl } from "../_shared/base-url.ts";
 import { createAdminClient } from "../_shared/client.ts";
 import { corsHeaders } from "../_shared/cors.ts";
-import { isSafeHttpUrl, json } from "../_shared/utils.ts";
+import { isPublicBaseUrl, isSafeHttpUrl, json, normalizeBaseUrl } from "../_shared/utils.ts";
+
+async function buildServerSettings(supabase: any, req: Request, firstActiveStreamId?: number | null) {
+  const { data } = await supabase.from("settings").select("key, value").in("key", ["base_url", "server_name"]);
+  const settingsMap = Object.fromEntries((data ?? []).map((item: any) => [item.key, item.value]));
+  const storedBaseUrl = settingsMap.base_url?.trim() ?? "";
+  const resolvedBaseUrl = await resolveBaseUrl(supabase, req);
+  const liveStreamId = firstActiveStreamId ?? 1;
+  const effectiveBaseUrl = storedBaseUrl && !storedBaseUrl.includes("YOUR-DOMAIN") ? normalizeBaseUrl(storedBaseUrl) : resolvedBaseUrl;
+  const isLocalhostBaseUrl = /localhost|127\.0\.0\.1|0\.0\.0\.0/.test(effectiveBaseUrl);
+
+  return {
+    brandName: settingsMap.server_name?.trim() || "OMAR PREMIUM PANEL",
+    configuredBaseUrl: storedBaseUrl,
+    baseUrl: effectiveBaseUrl,
+    isConfigured: Boolean(storedBaseUrl && !storedBaseUrl.includes("YOUR-DOMAIN")),
+    isLocalhostBaseUrl,
+    warning: isLocalhostBaseUrl
+      ? "localhost links are only for development and will not work in IPTV apps."
+      : null,
+    playerApi: `${effectiveBaseUrl}/player_api.php?username=testuser&password=testpass`,
+    m3u: `${effectiveBaseUrl}/get.php?username=testuser&password=testpass&type=m3u_plus&output=m3u8`,
+    xmltv: `${effectiveBaseUrl}/xmltv.php?username=testuser&password=testpass`,
+    live: `${effectiveBaseUrl}/live/testuser/testpass/${liveStreamId}.ts`,
+  };
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -41,7 +66,7 @@ serve(async (req) => {
     }
 
     if (action === "dashboard") {
-      const [usersCount, streamsCount, categoriesCount, latestUsersResult, usersResult, streamsResult, categoriesResult] = await Promise.all([
+      const [usersCount, streamsCount, categoriesCount, latestUsersResult, usersResult, streamsResult, categoriesResult, firstActiveStreamResult] = await Promise.all([
         supabase.from("iptv_users").select("id", { count: "exact", head: true }),
         supabase.from("live_streams").select("id", { count: "exact", head: true }),
         supabase.from("live_categories").select("id", { count: "exact", head: true }),
@@ -64,9 +89,17 @@ serve(async (req) => {
           .select("id, name, sort_order, image_url, created_at")
           .order("sort_order", { ascending: true })
           .order("id", { ascending: true }),
+        supabase
+          .from("live_streams")
+          .select("id")
+          .eq("status", "Active")
+          .order("sort_order", { ascending: true })
+          .order("id", { ascending: true })
+          .limit(1)
+          .maybeSingle(),
       ]);
 
-      const baseUrl = await resolveBaseUrl(supabase, req);
+      const server = await buildServerSettings(supabase, req, firstActiveStreamResult.data?.id ?? null);
 
       return json(
         {
@@ -82,18 +115,53 @@ serve(async (req) => {
             category_name: stream.live_categories?.name ?? "Uncategorized",
           })),
           categories: categoriesResult.data ?? [],
-          server: {
-            baseUrl,
-            playerApi: `${baseUrl}/player_api.php?username=testuser&password=testpass`,
-            m3u: `${baseUrl}/get.php?username=testuser&password=testpass&type=m3u_plus&output=m3u8`,
-            xmltv: `${baseUrl}/xmltv.php?username=testuser&password=testpass`,
-            live: `${baseUrl}/live/testuser/testpass/1.ts`,
-          },
+          server,
           admin: auth.data,
         },
         200,
         corsHeaders,
       );
+    }
+
+    if (action === "update_settings") {
+      const baseUrl = (body.base_url ?? "").trim();
+
+      if (!isPublicBaseUrl(baseUrl)) {
+        return json(
+          {
+            error: "Server Base URL must be a public http(s) domain like https://your-domain.com and cannot be localhost.",
+          },
+          400,
+          corsHeaders,
+        );
+      }
+
+      const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
+
+      const { error } = await supabase.from("settings").upsert(
+        {
+          key: "base_url",
+          value: normalizedBaseUrl,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "key" },
+      );
+
+      if (error) {
+        return json({ error: error.message }, 400, corsHeaders);
+      }
+
+      const { data: firstActiveStream } = await supabase
+        .from("live_streams")
+        .select("id")
+        .eq("status", "Active")
+        .order("sort_order", { ascending: true })
+        .order("id", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      const server = await buildServerSettings(supabase, req, firstActiveStream?.id ?? null);
+      return json({ server }, 200, corsHeaders);
     }
 
     if (action === "create_user") {

@@ -13,6 +13,7 @@ import { toast } from "sonner";
 
 import { AddStreamDialog } from "@/components/panel/add-stream-dialog";
 import { AddUserDialog } from "@/components/panel/add-user-dialog";
+import { SettingsCard } from "@/components/panel/settings-card";
 import { StatsCard } from "@/components/panel/stats-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ import {
   DashboardData,
   getDashboard,
   loginAdmin,
+  updateServerBaseUrl,
 } from "@/lib/panel-api";
 
 const STORAGE_KEY = "omar-premium-admin-auth";
@@ -52,7 +54,6 @@ const Index = () => {
   const [loggingIn, setLoggingIn] = useState(false);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<DashboardData | null>(null);
-  const projectBaseUrl = typeof window !== "undefined" ? window.location.origin : "https://YOUR-DOMAIN.com";
 
   const loadDashboard = useCallback(async (currentCredentials: AdminCredentials) => {
     setLoading(true);
@@ -147,27 +148,23 @@ const Index = () => {
     await loadDashboard(credentials);
   };
 
+  const handleSaveBaseUrl = async (baseUrl: string) => {
+    if (!credentials) return;
+    const response = await updateServerBaseUrl(credentials, baseUrl);
+    setData((current) => (current ? { ...current, server: response.server } : current));
+    toast.success("تم حفظ Server Base URL");
+    await loadDashboard(credentials);
+  };
+
   const apiRows = useMemo(() => {
     if (!data) return [];
     return [
-      {
-        label: "Xtream Player API",
-        value: `${projectBaseUrl}/player_api.php?username=testuser&password=testpass`,
-      },
-      {
-        label: "M3U URL",
-        value: `${projectBaseUrl}/get.php?username=testuser&password=testpass&type=m3u_plus&output=m3u8`,
-      },
-      {
-        label: "XMLTV URL",
-        value: `${projectBaseUrl}/xmltv.php?username=testuser&password=testpass`,
-      },
-      {
-        label: "Live Test URL",
-        value: `${projectBaseUrl}/live/testuser/testpass/1.ts`,
-      },
+      { label: "Xtream Player API", value: data.server.playerApi },
+      { label: "M3U URL", value: data.server.m3u },
+      { label: "XMLTV URL", value: data.server.xmltv },
+      { label: "Live Test URL", value: data.server.live },
     ];
-  }, [data, projectBaseUrl]);
+  }, [data]);
 
   if (!credentials || !data) {
     return (
@@ -211,7 +208,7 @@ const Index = () => {
                 <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
                   <p className="text-sm text-slate-400">دخول الأدمن الافتراضي</p>
                   <p className="mt-3 text-xl font-medium text-white">admin / admin12345</p>
-                  <p className="mt-2 text-sm text-slate-500">غيّره لاحقًا بعد اكتمال الاختبار الأول.</p>
+                  <p className="mt-2 text-sm text-slate-500">اضبط Server Base URL بعد النشر العام قبل اختبار IBO Player.</p>
                 </div>
               </div>
             </div>
@@ -234,8 +231,12 @@ const Index = () => {
                 </Badge>
                 <h3 className="text-2xl font-semibold text-white">تسجيل الدخول إلى لوحة الإدارة</h3>
                 <p className="text-sm leading-7 text-slate-400">
-                  بعد الدخول ستتمكن من إضافة مستخدم IPTV وقناة Live وإظهار روابط API الجاهزة للاختبار.
+                  بعد الدخول اضبط Server Base URL العام أولًا، ثم استخدم روابط Xtream و M3U على IBO Player.
                 </p>
+              </div>
+
+              <div className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 text-right text-sm leading-7 text-amber-100">
+                localhost links are only for development and will not work in IPTV apps.
               </div>
 
               <div className="space-y-4">
@@ -284,8 +285,7 @@ const Index = () => {
                 <div>
                   <h1 className="text-3xl font-semibold text-white sm:text-4xl">لوحة IPTV التجريبية</h1>
                   <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-400 sm:text-base">
-                    هذه النسخة مخصصة للتحقق العملي من توافق Xtream API مع IBO Player: Admin Login بسيط،
-                    إدارة مستخدمين IPTV، وإدارة قنوات Live مع روابط تشغيل داخلية.
+                    قبل استخدام IBO Player تأكد من حفظ دومين عام في Settings حتى تُبنى جميع روابط Xtream و M3U و XMLTV على رابط قابل للوصول من الخارج.
                   </p>
                 </div>
               </div>
@@ -335,28 +335,33 @@ const Index = () => {
           />
           <StatsCard
             title="حالة الربط"
-            value="Online"
-            description="Supabase + Edge Functions"
+            value={data.server.isConfigured ? "Public URL" : "Needs Setup"}
+            description={data.server.isConfigured ? "Ready for external IPTV apps" : "Save Server Base URL first"}
             icon={ShieldCheck}
-            iconClassName="bg-[#2563eb]"
+            iconClassName={data.server.isConfigured ? "bg-[#2563eb]" : "bg-[#b45309]"}
           />
         </section>
 
-        <section className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
+        <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
           <Card className="rounded-[2rem] border-white/10 bg-[#0b1228]">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-lg text-white">روابط API الجاهزة للاختبار</CardTitle>
               <Link2 className="h-5 w-5 text-[#8f7dff]" />
             </CardHeader>
             <CardContent className="space-y-4">
+              {data.server.warning ? (
+                <div className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 text-right text-sm leading-7 text-amber-100">
+                  {data.server.warning}
+                </div>
+              ) : null}
+
               <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-right">
                 <p className="text-sm text-emerald-300">بيانات IBO Player للاختبار</p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-3">
                   <div>
                     <p className="text-xs text-slate-400">Server URL</p>
-                    <p className="mt-1 break-all text-sm text-white">{projectBaseUrl}</p>
+                    <p className="mt-1 break-all text-sm text-white" dir="ltr">{data.server.baseUrl}</p>
                   </div>
-
                   <div>
                     <p className="text-xs text-slate-400">Username</p>
                     <p className="mt-1 text-sm text-white">testuser</p>
@@ -375,13 +380,17 @@ const Index = () => {
                     className="rounded-3xl border border-white/10 bg-white/5 p-4 text-right"
                   >
                     <p className="text-sm text-slate-400">{row.label}</p>
-                    <p className="mt-2 break-all text-sm leading-7 text-white">{row.value}</p>
+                    <p className="mt-2 break-all text-sm leading-7 text-white" dir="ltr">{row.value}</p>
                   </div>
                 ))}
               </div>
             </CardContent>
           </Card>
 
+          <SettingsCard server={data.server} onSave={handleSaveBaseUrl} disabled={loading} />
+        </section>
+
+        <section className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
           <Card className="rounded-[2rem] border-white/10 bg-[#0b1228]">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-lg text-white">آخر المستخدمين المضافين</CardTitle>
@@ -402,6 +411,22 @@ const Index = () => {
                   </div>
                 </div>
               ))}
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-[2rem] border-white/10 bg-[#0b1228]">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-lg text-white">حالة النشر</CardTitle>
+              <ShieldCheck className="h-5 w-5 text-[#2563eb]" />
+            </CardHeader>
+            <CardContent className="space-y-3 text-right">
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+                <p className="text-sm text-slate-400">Current Base URL</p>
+                <p className="mt-2 break-all text-white" dir="ltr">{data.server.baseUrl}</p>
+              </div>
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-sm leading-7 text-slate-300">
+                اختبار IBO Player يجب أن يتم بعد النشر على دومين عام. بعد الحفظ ضع رابط Vercel أو أي دومين عام هنا، ثم استخدم نفس الرابط في Xtream و M3U.
+              </div>
             </CardContent>
           </Card>
         </section>

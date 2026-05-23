@@ -6,6 +6,19 @@ export type AdminCredentials = {
   password: string;
 };
 
+export type ServerSettings = {
+  brandName: string;
+  configuredBaseUrl: string;
+  baseUrl: string;
+  isConfigured: boolean;
+  isLocalhostBaseUrl: boolean;
+  warning: string | null;
+  playerApi: string;
+  m3u: string;
+  xmltv: string;
+  live: string;
+};
+
 export type DashboardData = {
   counts: {
     users: number;
@@ -48,13 +61,7 @@ export type DashboardData = {
     image_url: string | null;
     created_at: string;
   }>;
-  server: {
-    baseUrl: string;
-    playerApi: string;
-    m3u: string;
-    xmltv: string;
-    live: string;
-  };
+  server: ServerSettings;
   admin: {
     id: string;
     username: string;
@@ -101,6 +108,10 @@ export function loginAdmin(credentials: AdminCredentials) {
 
 export function getDashboard(credentials: AdminCredentials) {
   return callAdminPanel<DashboardData>({ action: "dashboard" }, credentials);
+}
+
+export function updateServerBaseUrl(credentials: AdminCredentials, baseUrl: string) {
+  return callAdminPanel<{ server: ServerSettings }>({ action: "update_settings", base_url: baseUrl }, credentials);
 }
 
 export function createIptvUser(
