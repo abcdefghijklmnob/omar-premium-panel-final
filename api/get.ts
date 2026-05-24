@@ -73,7 +73,7 @@ export default async function handler(req: any, res: any) {
 
   try {
     if (req.method !== "GET") {
-      res.status(405).setHeader("Content-Type", "application/x-mpegURL; charset=utf-8");
+      res.status(405).setHeader("Content-Type", "application/vnd.apple.mpegurl; charset=utf-8");
       return res.send("#EXTM3U\n# ERROR: Method not allowed");
     }
 
@@ -94,7 +94,7 @@ export default async function handler(req: any, res: any) {
     });
 
     const body = playlist && playlist.startsWith("#EXTM3U") ? playlist : "#EXTM3U";
-    res.status(200).setHeader("Content-Type", "application/x-mpegURL; charset=utf-8");
+    res.status(200).setHeader("Content-Type", "application/vnd.apple.mpegurl; charset=utf-8");
     return res.send(body);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected error";
@@ -102,7 +102,7 @@ export default async function handler(req: any, res: any) {
       message,
       stack: error instanceof Error ? error.stack : null,
     });
-    res.status(200).setHeader("Content-Type", "application/x-mpegURL; charset=utf-8");
+    res.status(200).setHeader("Content-Type", "application/vnd.apple.mpegurl; charset=utf-8");
     return res.send(`#EXTM3U\n# ERROR: ${message}`);
   }
 }
