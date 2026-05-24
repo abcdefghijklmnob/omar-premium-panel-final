@@ -1,21 +1,34 @@
-import { callRpc } from "./_lib/supabase";
+import {
+  callRpc,
+  createErrorPayload,
+  getMethod,
+  getQueryParam,
+  sendText,
+} from "./_lib/supabase";
 
-export default async function handler(req: any, res: any) {
-  if (req.method !== "GET") {
-    res.status(405).send("Method not allowed");
-    return;
+const ROUTE = "xmltv";
+const EMPTY_XML = '<?xml version="1.0" encoding="UTF-8"?><tv></tv>';
+
+export default async function handler(req: any, res?: any) {
+  if (getMethod(req) !== "GET") {
+    return sendText(res, 405, EMPTY_XML, "application/xml; charset=utf-8");
   }
 
   try {
     const xml = await callRpc("xtream_xmltv", {
-      p_username: String(req.query.username ?? ""),
-      p_password: String(req.query.password ?? ""),
+      p_username: getQueryParam(req, "username"),
+      p_password: getQueryParam(req, "password"),
     });
 
-    res.status(200).setHeader("Content-Type", "application/xml; charset=utf-8");
-    res.send(String(xml ?? '<?xml version="1.0" encoding="UTF-8"?><tv></tv>'));
+    const body = typeof xml === "string" && xml.trim().startsWith("<?xml") ? xml : EMPTY_XML;
+    return sendText(res, 200, body, "application/xml; charset=utf-8");
   } catch (error) {
-    res.status(500).setHeader("Content-Type", "application/xml; charset=utf-8");
-    res.send('<?xml version="1.0" encoding="UTF-8"?><tv></tv>');
+    const errorBody = createErrorPayload(ROUTE, error);
+    return sendText(
+      res,
+      200,
+      `<?xml version="1.0" encoding="UTF-8"?><tv><!-- ${String(errorBody.message).replace(/--/g, "") } --></tv>`,
+      "application/xml; charset=utf-8",
+    );
   }
 }

@@ -1,23 +1,35 @@
-import { callRpc, getRequestBaseUrl } from "./_lib/supabase";
+import {
+  callRpc,
+  createErrorPayload,
+  getMethod,
+  getQueryParam,
+  getRequestBaseUrl,
+  sendJson,
+} from "./_lib/supabase";
 
-export default async function handler(req: any, res: any) {
-  if (req.method !== "GET") {
-    res.status(405).json({ error: "Method not allowed" });
-    return;
+const ROUTE = "player_api";
+
+export default async function handler(req: any, res?: any) {
+  if (getMethod(req) !== "GET") {
+    return sendJson(res, 405, {
+      error: true,
+      route: ROUTE,
+      message: "Method not allowed",
+      details: null,
+    });
   }
 
   try {
     const baseUrl = getRequestBaseUrl(req);
     const data = await callRpc("xtream_player_api", {
-      p_username: String(req.query.username ?? ""),
-      p_password: String(req.query.password ?? ""),
-      p_action: req.query.action ? String(req.query.action) : null,
+      p_username: getQueryParam(req, "username"),
+      p_password: getQueryParam(req, "password"),
+      p_action: getQueryParam(req, "action") || null,
       p_base_url: baseUrl,
     });
 
-    res.status(200).setHeader("Content-Type", "application/json; charset=utf-8");
-    res.send(JSON.stringify(data));
+    return sendJson(res, 200, data ?? {});
   } catch (error) {
-    res.status(500).json({ error: error instanceof Error ? error.message : "Internal server error" });
+    return sendJson(res, 200, createErrorPayload(ROUTE, error));
   }
 }

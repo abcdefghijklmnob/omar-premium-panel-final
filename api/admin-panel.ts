@@ -1,90 +1,103 @@
-import { callRpc } from "./_lib/supabase";
+import {
+  callRpc,
+  createErrorPayload,
+  getBody,
+  getHeader,
+  getMethod,
+  sendJson,
+} from "./_lib/supabase";
 
-export default async function handler(req: any, res: any) {
-  if (req.method !== "POST") {
-    res.status(405).json({ error: "Method not allowed" });
-    return;
+const ROUTE = "admin_panel";
+
+export default async function handler(req: any, res?: any) {
+  if (getMethod(req) !== "POST") {
+    return sendJson(res, 405, {
+      error: true,
+      route: ROUTE,
+      message: "Method not allowed",
+      details: null,
+    });
   }
 
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
+    const body = await getBody(req);
+    const action = String(body?.action ?? "");
     const credentials = {
-      username: String(req.headers["x-admin-username"] ?? body.username ?? ""),
-      password: String(req.headers["x-admin-password"] ?? body.password ?? ""),
+      username: getHeader(req, "x-admin-username") || String(body?.username ?? ""),
+      password: getHeader(req, "x-admin-password") || String(body?.password ?? ""),
     };
 
-    if (body.action === "login") {
+    if (action === "login") {
       const admin = await callRpc("admin_login", {
-        p_username: String(body.username ?? ""),
-        p_password: String(body.password ?? ""),
+        p_username: String(body?.username ?? ""),
+        p_password: String(body?.password ?? ""),
       });
-      res.status(200).json({ admin });
-      return;
+      return sendJson(res, 200, { admin });
     }
 
-    if (body.action === "dashboard") {
+    if (action === "dashboard") {
       const dashboard = await callRpc("admin_dashboard", {
         p_username: credentials.username,
         p_password: credentials.password,
       });
-      res.status(200).json(dashboard);
-      return;
+      return sendJson(res, 200, dashboard);
     }
 
-    if (body.action === "update_settings") {
+    if (action === "update_settings") {
       const server = await callRpc("admin_update_base_url", {
         p_username: credentials.username,
         p_password: credentials.password,
-        p_base_url: String(body.base_url ?? ""),
+        p_base_url: String(body?.base_url ?? ""),
       });
-      res.status(200).json({ server });
-      return;
+      return sendJson(res, 200, { server });
     }
 
-    if (body.action === "create_user") {
+    if (action === "create_user") {
       const user = await callRpc("admin_create_user", {
         p_username: credentials.username,
         p_password: credentials.password,
-        p_new_username: String(body.username ?? ""),
-        p_new_password: String(body.password ?? ""),
-        p_status: String(body.status ?? "Active"),
-        p_expiry_date: String(body.expiry_date ?? ""),
-        p_max_connections: Number(body.max_connections ?? 1),
-        p_notes: String(body.notes ?? ""),
+        p_new_username: String(body?.username ?? ""),
+        p_new_password: String(body?.password ?? ""),
+        p_status: String(body?.status ?? "Active"),
+        p_expiry_date: String(body?.expiry_date ?? ""),
+        p_max_connections: Number(body?.max_connections ?? 1),
+        p_notes: String(body?.notes ?? ""),
       });
-      res.status(200).json({ user });
-      return;
+      return sendJson(res, 200, { user });
     }
 
-    if (body.action === "create_category") {
+    if (action === "create_category") {
       const category = await callRpc("admin_create_category", {
         p_username: credentials.username,
         p_password: credentials.password,
-        p_name: String(body.name ?? ""),
-        p_sort_order: Number(body.sort_order ?? 0),
-        p_image_url: String(body.image_url ?? ""),
+        p_name: String(body?.name ?? ""),
+        p_sort_order: Number(body?.sort_order ?? 0),
+        p_image_url: String(body?.image_url ?? ""),
       });
-      res.status(200).json({ category });
-      return;
+      return sendJson(res, 200, { category });
     }
 
-    if (body.action === "create_stream") {
+    if (action === "create_stream") {
       const stream = await callRpc("admin_create_stream", {
         p_username: credentials.username,
         p_password: credentials.password,
-        p_name: String(body.name ?? ""),
-        p_stream_url: String(body.stream_url ?? ""),
-        p_logo_url: String(body.logo_url ?? ""),
-        p_category_id: Number(body.category_id ?? 0),
-        p_status: String(body.status ?? "Active"),
-        p_sort_order: Number(body.sort_order ?? 0),
+        p_name: String(body?.name ?? ""),
+        p_stream_url: String(body?.stream_url ?? ""),
+        p_logo_url: String(body?.logo_url ?? ""),
+        p_category_id: Number(body?.category_id ?? 0),
+        p_status: String(body?.status ?? "Active"),
+        p_sort_order: Number(body?.sort_order ?? 0),
       });
-      res.status(200).json({ stream });
-      return;
+      return sendJson(res, 200, { stream });
     }
 
-    res.status(400).json({ error: "Unsupported action" });
+    return sendJson(res, 400, {
+      error: true,
+      route: ROUTE,
+      message: "Unsupported action",
+      details: { action },
+    });
   } catch (error) {
-    res.status(500).json({ error: error instanceof Error ? error.message : "Internal server error" });
+    return sendJson(res, 400, createErrorPayload(ROUTE, error));
   }
 }

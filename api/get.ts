@@ -1,22 +1,36 @@
-import { callRpc, getRequestBaseUrl } from "./_lib/supabase";
+import {
+  callRpc,
+  createErrorPayload,
+  getMethod,
+  getQueryParam,
+  getRequestBaseUrl,
+  sendText,
+} from "./_lib/supabase";
 
-export default async function handler(req: any, res: any) {
-  if (req.method !== "GET") {
-    res.status(405).send("Method not allowed");
-    return;
+const ROUTE = "get";
+
+export default async function handler(req: any, res?: any) {
+  if (getMethod(req) !== "GET") {
+    return sendText(res, 405, "#EXTM3U\n# Method not allowed", "application/x-mpegURL; charset=utf-8");
   }
 
   try {
     const baseUrl = getRequestBaseUrl(req);
     const playlist = await callRpc("xtream_get_m3u", {
-      p_username: String(req.query.username ?? ""),
-      p_password: String(req.query.password ?? ""),
+      p_username: getQueryParam(req, "username"),
+      p_password: getQueryParam(req, "password"),
       p_base_url: baseUrl,
     });
 
-    res.status(200).setHeader("Content-Type", "application/x-mpegURL; charset=utf-8");
-    res.send(String(playlist ?? "#EXTM3U"));
+    const body = typeof playlist === "string" && playlist.startsWith("#EXTM3U") ? playlist : "#EXTM3U";
+    return sendText(res, 200, body, "application/x-mpegURL; charset=utf-8");
   } catch (error) {
-    res.status(500).send(error instanceof Error ? error.message : "Internal server error");
+    const errorBody = createErrorPayload(ROUTE, error);
+    return sendText(
+      res,
+      200,
+      `#EXTM3U\n# ERROR: ${errorBody.message}`,
+      "application/x-mpegURL; charset=utf-8",
+    );
   }
 }
