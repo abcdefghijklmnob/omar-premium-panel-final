@@ -21,11 +21,109 @@ export type ServerSettings = {
   placeholderBaseUrl?: string;
 };
 
+export type LiveCategory = {
+  id: number;
+  name: string;
+  sort_order: number;
+  image_url: string | null;
+  created_at: string;
+};
+
+export type LiveStream = {
+  id: number;
+  name: string;
+  stream_url: string;
+  logo_url: string | null;
+  status: string;
+  sort_order: number;
+  created_at: string;
+  category_id: number | null;
+  category_name: string;
+};
+
+export type VodCategory = {
+  id: number;
+  name: string;
+  sort_order: number;
+  status: string;
+  created_at: string;
+};
+
+export type VodStream = {
+  id: number;
+  title: string;
+  stream_url: string;
+  poster_url: string | null;
+  backdrop_url: string | null;
+  category_id: number | null;
+  category_name: string;
+  description: string | null;
+  genre: string | null;
+  release_year: number | null;
+  rating: string | null;
+  duration: string | null;
+  sort_order: number;
+  status: string;
+  created_at: string;
+};
+
+export type SeriesCategory = {
+  id: number;
+  name: string;
+  sort_order: number;
+  status: string;
+  created_at: string;
+};
+
+export type SeriesRecord = {
+  id: number;
+  title: string;
+  poster_url: string | null;
+  backdrop_url: string | null;
+  category_id: number | null;
+  category_name: string;
+  description: string | null;
+  genre: string | null;
+  release_year: number | null;
+  rating: string | null;
+  sort_order: number;
+  status: string;
+  created_at: string;
+};
+
+export type SeriesSeason = {
+  id: number;
+  series_id: number;
+  series_title: string;
+  season_number: number;
+  name: string | null;
+  sort_order: number;
+  created_at: string;
+};
+
+export type SeriesEpisode = {
+  id: number;
+  series_id: number;
+  series_title: string;
+  season_id: number;
+  season_number: number;
+  episode_title: string;
+  episode_number: number;
+  stream_url: string;
+  duration: string | null;
+  poster_url: string | null;
+  status: string;
+  created_at: string;
+};
+
 export type DashboardData = {
   counts: {
     users: number;
     streams: number;
     categories: number;
+    movies: number;
+    series: number;
+    episodes: number;
   };
   latestUsers: Array<{
     id: string;
@@ -45,24 +143,14 @@ export type DashboardData = {
     notes: string | null;
     created_at: string;
   }>;
-  streams: Array<{
-    id: number;
-    name: string;
-    stream_url: string;
-    logo_url: string | null;
-    status: string;
-    sort_order: number;
-    created_at: string;
-    category_id: number | null;
-    category_name: string;
-  }>;
-  categories: Array<{
-    id: number;
-    name: string;
-    sort_order: number;
-    image_url: string | null;
-    created_at: string;
-  }>;
+  streams: LiveStream[];
+  categories: LiveCategory[];
+  vod_categories: VodCategory[];
+  vod_streams: VodStream[];
+  series_categories: SeriesCategory[];
+  series: SeriesRecord[];
+  series_seasons: SeriesSeason[];
+  series_episodes: SeriesEpisode[];
   server: ServerSettings;
   admin: {
     id: string;
@@ -86,10 +174,18 @@ async function callRpc<T>(functionName: string, payload: Record<string, unknown>
   const data = text ? JSON.parse(text) : null;
 
   if (!response.ok) {
-    throw new Error(data?.message || data?.error || data?.details || "Request failed");
+    throw new Error(data?.message || data?.error || data?.details || text || "Request failed");
   }
 
   return data as T;
+}
+
+function withAdmin(credentials: AdminCredentials, payload: Record<string, unknown>) {
+  return {
+    p_username: credentials.username,
+    p_password: credentials.password,
+    ...payload,
+  };
 }
 
 export async function loginAdmin(credentials: AdminCredentials) {
@@ -181,4 +277,164 @@ export async function createStream(
   });
 
   return { stream };
+}
+
+export function saveVodCategory(
+  credentials: AdminCredentials,
+  payload: { id?: number; name: string; sort_order: number; status: string },
+) {
+  return callRpc("admin_save_vod_category", withAdmin(credentials, {
+    p_id: payload.id ?? null,
+    p_name: payload.name,
+    p_sort_order: payload.sort_order,
+    p_status: payload.status,
+  }));
+}
+
+export function deleteVodCategory(credentials: AdminCredentials, id: number) {
+  return callRpc("admin_delete_vod_category", withAdmin(credentials, { p_id: id }));
+}
+
+export function saveVodStream(
+  credentials: AdminCredentials,
+  payload: {
+    id?: number;
+    title: string;
+    stream_url: string;
+    poster_url?: string;
+    backdrop_url?: string;
+    category_id?: number | null;
+    description?: string;
+    genre?: string;
+    release_year?: number | null;
+    rating?: string;
+    duration?: string;
+    sort_order: number;
+    status: string;
+  },
+) {
+  return callRpc("admin_save_vod_stream", withAdmin(credentials, {
+    p_id: payload.id ?? null,
+    p_title: payload.title,
+    p_stream_url: payload.stream_url,
+    p_poster_url: payload.poster_url ?? "",
+    p_backdrop_url: payload.backdrop_url ?? "",
+    p_category_id: payload.category_id ?? null,
+    p_description: payload.description ?? "",
+    p_genre: payload.genre ?? "",
+    p_release_year: payload.release_year ?? null,
+    p_rating: payload.rating ?? "",
+    p_duration: payload.duration ?? "",
+    p_sort_order: payload.sort_order,
+    p_status: payload.status,
+  }));
+}
+
+export function deleteVodStream(credentials: AdminCredentials, id: number) {
+  return callRpc("admin_delete_vod_stream", withAdmin(credentials, { p_id: id }));
+}
+
+export function saveSeriesCategory(
+  credentials: AdminCredentials,
+  payload: { id?: number; name: string; sort_order: number; status: string },
+) {
+  return callRpc("admin_save_series_category", withAdmin(credentials, {
+    p_id: payload.id ?? null,
+    p_name: payload.name,
+    p_sort_order: payload.sort_order,
+    p_status: payload.status,
+  }));
+}
+
+export function deleteSeriesCategory(credentials: AdminCredentials, id: number) {
+  return callRpc("admin_delete_series_category", withAdmin(credentials, { p_id: id }));
+}
+
+export function saveSeries(
+  credentials: AdminCredentials,
+  payload: {
+    id?: number;
+    title: string;
+    poster_url?: string;
+    backdrop_url?: string;
+    category_id?: number | null;
+    description?: string;
+    genre?: string;
+    release_year?: number | null;
+    rating?: string;
+    sort_order: number;
+    status: string;
+  },
+) {
+  return callRpc("admin_save_series", withAdmin(credentials, {
+    p_id: payload.id ?? null,
+    p_title: payload.title,
+    p_poster_url: payload.poster_url ?? "",
+    p_backdrop_url: payload.backdrop_url ?? "",
+    p_category_id: payload.category_id ?? null,
+    p_description: payload.description ?? "",
+    p_genre: payload.genre ?? "",
+    p_release_year: payload.release_year ?? null,
+    p_rating: payload.rating ?? "",
+    p_sort_order: payload.sort_order,
+    p_status: payload.status,
+  }));
+}
+
+export function deleteSeries(credentials: AdminCredentials, id: number) {
+  return callRpc("admin_delete_series", withAdmin(credentials, { p_id: id }));
+}
+
+export function saveSeriesSeason(
+  credentials: AdminCredentials,
+  payload: {
+    id?: number;
+    series_id: number;
+    season_number: number;
+    name?: string;
+    sort_order: number;
+  },
+) {
+  return callRpc("admin_save_series_season", withAdmin(credentials, {
+    p_id: payload.id ?? null,
+    p_series_id: payload.series_id,
+    p_season_number: payload.season_number,
+    p_name: payload.name ?? "",
+    p_sort_order: payload.sort_order,
+  }));
+}
+
+export function deleteSeriesSeason(credentials: AdminCredentials, id: number) {
+  return callRpc("admin_delete_series_season", withAdmin(credentials, { p_id: id }));
+}
+
+export function saveSeriesEpisode(
+  credentials: AdminCredentials,
+  payload: {
+    id?: number;
+    series_id: number;
+    season_id: number;
+    episode_title: string;
+    episode_number: number;
+    stream_url: string;
+    duration?: string;
+    poster_url?: string;
+    status: string;
+  },
+) {
+  return callRpc("admin_save_series_episode", withAdmin(credentials, {
+    p_id: payload.id ?? null,
+    p_series_id: payload.series_id,
+    p_season_id: payload.season_id,
+    p_episode_title: payload.episode_title,
+    p_episode_number: payload.episode_number,
+    p_stream_url: payload.stream_url,
+    p_duration: payload.duration ?? "",
+    p_poster_url: payload.poster_url ?? "",
+    p_status: payload.status,
+  }));
+}
+
+export function deleteSeriesEpisode(credentials: AdminCredentials, id: number) {
+  return callRpc("admin_delete_series_episode", withAdmin(credentials, { p_id: id }));
 }

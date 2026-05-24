@@ -55,11 +55,16 @@ export default async function handler(req: any, res: any) {
       return res.status(405).json({ error: true, route: ROUTE, message: "Method not allowed" });
     }
 
+    const vodId = getQuery(req, "vod_id");
+    const seriesId = getQuery(req, "series_id");
+
     const data = await callRpc("xtream_player_api", {
       p_username: getQuery(req, "username"),
       p_password: getQuery(req, "password"),
       p_action: getQuery(req, "action") || null,
       p_base_url: getBaseUrl(req),
+      p_vod_id: vodId ? Number(vodId) : null,
+      p_series_id: seriesId ? Number(seriesId) : null,
     });
 
     return res.status(200).json(data);
