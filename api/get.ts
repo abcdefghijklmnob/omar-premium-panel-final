@@ -31,7 +31,15 @@ function getSupabaseConfig() {
 
 async function callRpc(name: string, payload: Record<string, unknown>) {
   const { url, key } = getSupabaseConfig();
-  const response = await fetch(`${url}/rest/v1/rpc/${name}`, {
+  const rpcUrl = `${url}/rest/v1/rpc/${name}`;
+
+  console.log("[api-get] rpc start", {
+    rpcUrl,
+    hasKey: Boolean(key),
+    payload,
+  });
+
+  const response = await fetch(rpcUrl, {
     method: "POST",
     headers: {
       apikey: key,
@@ -42,6 +50,13 @@ async function callRpc(name: string, payload: Record<string, unknown>) {
   });
 
   const text = await response.text();
+
+  console.log("[api-get] rpc response", {
+    status: response.status,
+    ok: response.ok,
+    preview: text.slice(0, 300),
+  });
+
   if (!response.ok) {
     throw new Error(text || `Supabase RPC failed with status ${response.status}`);
   }
@@ -50,16 +65,32 @@ async function callRpc(name: string, payload: Record<string, unknown>) {
 }
 
 export default async function handler(req: any, res: any) {
+  console.log("[api-get] handler invoked", {
+    method: req?.method,
+    query: req?.query ?? null,
+    hasHeaders: Boolean(req?.headers),
+  });
+
   try {
     if (req.method !== "GET") {
       res.status(405).setHeader("Content-Type", "application/x-mpegURL; charset=utf-8");
       return res.send("#EXTM3U\n# ERROR: Method not allowed");
     }
 
+    const baseUrl = getBaseUrl(req);
+    const username = getQuery(req, "username");
+    const password = getQuery(req, "password");
+
+    console.log("[api-get] parsed request", {
+      baseUrl,
+      username,
+      hasPassword: Boolean(password),
+    });
+
     const playlist = await callRpc("xtream_get_m3u", {
-      p_username: getQuery(req, "username"),
-      p_password: getQuery(req, "password"),
-      p_base_url: getBaseUrl(req),
+      p_username: username,
+      p_password: password,
+      p_base_url: baseUrl,
     });
 
     const body = playlist && playlist.startsWith("#EXTM3U") ? playlist : "#EXTM3U";
@@ -67,7 +98,10 @@ export default async function handler(req: any, res: any) {
     return res.send(body);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected error";
-    console.error("[api-get] route failure", { message });
+    console.error("[api-get] route failure", {
+      message,
+      stack: error instanceof Error ? error.stack : null,
+    });
     res.status(200).setHeader("Content-Type", "application/x-mpegURL; charset=utf-8");
     return res.send(`#EXTM3U\n# ERROR: ${message}`);
   }
