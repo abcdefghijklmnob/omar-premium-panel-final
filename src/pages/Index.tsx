@@ -39,7 +39,10 @@ import {
   deleteSeriesSeason,
   deleteVodCategory,
   deleteVodStream,
+  generateIboPlaylist,
   getDashboard,
+  getIboPlaylists,
+  IboPlaylistRecord,
   loginAdmin,
   saveSeries,
   saveSeriesCategory,
@@ -74,13 +77,19 @@ const Index = () => {
   const [loggingIn, setLoggingIn] = useState(false);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<DashboardData | null>(null);
+  const [iboPlaylists, setIboPlaylists] = useState<IboPlaylistRecord[]>([]);
+  const [generatingUsername, setGeneratingUsername] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<AdminView>("dashboard");
 
   const loadDashboard = useCallback(async (currentCredentials: AdminCredentials) => {
     setLoading(true);
     try {
-      const dashboard = await getDashboard(currentCredentials);
+      const [dashboard, playlists] = await Promise.all([
+        getDashboard(currentCredentials),
+        getIboPlaylists(currentCredentials),
+      ]);
       setData(dashboard);
+      setIboPlaylists(playlists);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to load dashboard";
       toast.error(message);
@@ -132,6 +141,7 @@ const Index = () => {
     localStorage.removeItem(STORAGE_KEY);
     setCredentials(null);
     setData(null);
+    setIboPlaylists([]);
     setActiveView("dashboard");
     toast.success("تم تسجيل الخروج");
   };
@@ -194,6 +204,57 @@ const Index = () => {
       { label: "Live Test URL", value: data.server.live },
     ];
   }, [data, iboStaticUrl]);
+
+  const iboPlaylistsByUsername = useMemo(
+    () => Object.fromEntries(iboPlaylists.map((playlist) => [playlist.username, playlist])),
+    [iboPlaylists],
+  );
+
+  const handleGenerateUserPlaylist = async (username: string) => {
+    if (!credentials) return;
+
+    setGeneratingUsername(username);
+    try {
+      await generateIboPlaylist(credentials, username);
+      toast.success(`تم توليد ملف IBO للمستخدم ${username}`);
+      await loadDashboard(credentials);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "تعذر توليد ملف IBO");
+    } finally {
+      setGeneratingUsername(null);
+    }
+  };
+
+  const handleCopyPlaylistUrl = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("تم نسخ رابط الملف");
+    } catch {
+      toast.error("تعذر نسخ الرابط");
+    }
+  };
+
+  const handleDownloadPlaylist = async (url: string, username: string) => {
+    try {
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error("Failed to download playlist");
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = `${username}.m3u`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+      toast.success("تم تنزيل ملف M3U");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "تعذر تنزيل الملف");
+    }
+  };
 
   if (!credentials || !data) {
     return (
@@ -415,17 +476,59 @@ const Index = () => {
                         <TableHead className="text-right text-slate-400">الحالة</TableHead>
                         <TableHead className="text-right text-slate-400">الانتهاء</TableHead>
                         <TableHead className="text-right text-slate-400">الاتصالات</TableHead>
+                        <TableHead className="text-right text-slate-400">IBO M3U</TableHead>
+
+                        <TableHead className="text-right text-slate-400">آخر توليد</TableHead>
+                        <TableHead className="text-right text-slate-400">القنوات</TableHead>
+                        <TableHead className="text-right text-slate-400">إجراءات</TableHead>
                       </TableRow>
+
                     </TableHeader>
                     <TableBody>
-                      {data.users.map((user) => (
-                        <TableRow key={user.id} className="border-white/10 hover:bg-white/5">
-                          <TableCell className="text-right text-white"><div><p className="font-medium">{user.username}</p><p className="text-xs text-slate-500">{user.notes || "بدون ملاحظات"}</p></div></TableCell>
-                          <TableCell className="text-right"><Badge className={`rounded-full border ${statusStyles[user.status] ?? statusStyles.Active}`}>{user.status}</Badge></TableCell>
-                          <TableCell className="text-right text-slate-300">{user.expiry_date}</TableCell>
-                          <TableCell className="text-right text-slate-300">{user.max_connections}</TableCell>
-                        </TableRow>
-                      ))}
+                      {data.users.map((user) => {
+                        const playlist = iboPlaylistsByUsername[user.username];
+
+                        return (
+                          <TableRow key={user.id} className="border-white/10 hover:bg-white/5">
+                            <TableCell className="text-right text-white"><div><p className="font-medium">{user.username}</p><p className="text-xs text-slate-500">{user.notes || "بدون ملاحظات"}</p></div></TableCell>
+                            <TableCell className="text-right"><Badge className={`rounded-full border ${statusStyles[user.status] ?? statusStyles.Active}`}>{user.status}</Badge></TableCell>
+                            <TableCell className="text-right text-slate-300">{user.expiry_date}</TableCell>
+                            <TableCell className="text-right text-slate-300">{user.max_connections}</TableCell>
+                            <TableCell className="text-right text-slate-300">
+
+                              {playlist ? (
+                                <a href={playlist.public_url} target="_blank" rel="noreferrer" className="block max-w-[220px] truncate text-[#a690ff] hover:text-white" dir="ltr">
+                                  {playlist.public_url}
+                                </a>
+                              ) : (
+                                <span className="text-slate-500">غير مولد بعد</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right text-slate-300">{playlist ? new Date(playlist.generated_at).toLocaleString() : "—"}</TableCell>
+                            <TableCell className="text-right text-slate-300">{playlist?.channel_count ?? 0}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex flex-wrap justify-end gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleGenerateUserPlaylist(user.username)}
+                                  disabled={loading || generatingUsername === user.username}
+                                  className="rounded-xl bg-[#6D4CFF] text-white hover:bg-[#7B5DFF]"
+                                >
+                                  {generatingUsername === user.username ? "جارٍ التوليد..." : "Generate IBO M3U"}
+                                </Button>
+                                {playlist ? (
+                                  <>
+                                    <Button size="sm" variant="outline" onClick={() => handleCopyPlaylistUrl(playlist.public_url)} className="rounded-xl border-white/10 bg-transparent text-slate-200 hover:bg-white/5 hover:text-white">Copy</Button>
+                                    <Button size="sm" variant="outline" asChild className="rounded-xl border-white/10 bg-transparent text-slate-200 hover:bg-white/5 hover:text-white"><a href={playlist.public_url} target="_blank" rel="noreferrer">Open</a></Button>
+                                    <Button size="sm" variant="outline" onClick={() => handleDownloadPlaylist(playlist.public_url, user.username)} className="rounded-xl border-white/10 bg-transparent text-slate-200 hover:bg-white/5 hover:text-white">Download</Button>
+                                  </>
+                                ) : null}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+
                     </TableBody>
                   </Table>
                 </CardContent>

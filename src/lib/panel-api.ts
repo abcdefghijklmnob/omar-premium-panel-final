@@ -1,5 +1,8 @@
+import { supabase } from "@/integrations/supabase/client";
+
 const SUPABASE_URL = "https://gsfzfsylnrirrhdtvjmg.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdzZnpmc3lsbnJpcnJoZHR2am1nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1NzY5MjgsImV4cCI6MjA5NTE1MjkyOH0.31h7kDHADeH_65pgvVyrmvZl219OUV6WMMEL5jQBi1U";
+
 const RPC_BASE_URL = `${SUPABASE_URL}/rest/v1/rpc`;
 
 export type AdminCredentials = {
@@ -157,6 +160,18 @@ export type DashboardData = {
     username: string;
     display_name: string | null;
   };
+};
+
+export type IboPlaylistRecord = {
+  id: string;
+  user_id: string;
+  username: string;
+  bucket_name: string;
+  storage_path: string;
+  public_url: string;
+  channel_count: number;
+  generated_at: string;
+  updated_at: string;
 };
 
 async function callRpc<T>(functionName: string, payload: Record<string, unknown>): Promise<T> {
@@ -437,4 +452,28 @@ export function saveSeriesEpisode(
 
 export function deleteSeriesEpisode(credentials: AdminCredentials, id: number) {
   return callRpc("admin_delete_series_episode", withAdmin(credentials, { p_id: id }));
+}
+
+export function getIboPlaylists(credentials: AdminCredentials) {
+  return callRpc<IboPlaylistRecord[]>("admin_list_ibo_playlists", withAdmin(credentials, {}));
+}
+
+export async function generateIboPlaylist(credentials: AdminCredentials, targetUsername: string) {
+  const { data, error } = await supabase.functions.invoke<{ playlist?: IboPlaylistRecord; error?: string }>("generate-ibo-playlist", {
+    body: {
+      adminUsername: credentials.username,
+      adminPassword: credentials.password,
+      targetUsername,
+    },
+  });
+
+  if (error) {
+    throw new Error(error.message || "Failed to generate IBO playlist");
+  }
+
+  if (!data?.playlist) {
+    throw new Error(data?.error || "Failed to generate IBO playlist");
+  }
+
+  return data.playlist as IboPlaylistRecord;
 }
