@@ -1,7 +1,7 @@
 export default function handler(req, res) {
   const m3u = `#EXTM3U
 #EXTINF:-1 tvg-name="Test Channel" group-title="Live TV",Test Channel
-https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8
+https://omar-premium-panel-final.vercel.app/live/testuser/testpass/1.ts
 `;
 
   const debug = req?.query?.debug;
