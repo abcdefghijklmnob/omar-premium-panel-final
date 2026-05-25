@@ -15,10 +15,12 @@ import { toast } from "sonner";
 
 import { AddStreamDialog } from "@/components/panel/add-stream-dialog";
 import { AddUserDialog } from "@/components/panel/add-user-dialog";
+import { IboPlaylistCard } from "@/components/panel/ibo-playlist-card";
 import { MovieManager } from "@/components/panel/movie-manager";
 import { SeriesManager } from "@/components/panel/series-manager";
 import { SettingsCard } from "@/components/panel/settings-card";
 import { StatsCard } from "@/components/panel/stats-card";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -177,15 +179,21 @@ const Index = () => {
     await loadDashboard(credentials);
   };
 
+  const iboStaticUrl = useMemo(() => {
+    if (!data) return "";
+    return `${data.server.baseUrl.replace(/\/$/, "")}/ibo/testuser.m3u`;
+  }, [data]);
+
   const apiRows = useMemo(() => {
     if (!data) return [];
     return [
       { label: "Xtream Player API", value: data.server.playerApi },
+      { label: "Static IBO M3U", value: iboStaticUrl },
       { label: "M3U URL", value: data.server.m3u },
       { label: "XMLTV URL", value: data.server.xmltv },
       { label: "Live Test URL", value: data.server.live },
     ];
-  }, [data]);
+  }, [data, iboStaticUrl]);
 
   if (!credentials || !data) {
     return (
@@ -372,21 +380,25 @@ const Index = () => {
                 </CardContent>
               </Card>
 
-              <Card className="rounded-[2rem] border-white/10 bg-[#0b1228]">
-                <CardHeader className="flex flex-row items-center justify-between pb-3">
-                  <CardTitle className="text-lg text-white">حالة النشر</CardTitle>
-                  <ShieldCheck className="h-5 w-5 text-[#2563eb]" />
-                </CardHeader>
-                <CardContent className="space-y-3 text-right">
-                  <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-sm text-slate-400">Current Base URL</p>
-                    <p className="mt-2 break-all text-white" dir="ltr">{data.server.baseUrl}</p>
-                  </div>
-                  <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm leading-7 text-emerald-100">
-                    النسخة المحلية الحالية تجعل <span dir="ltr">/get.php</span> ثابتًا ويرجع <span dir="ltr">#EXTM3U</span>. إذا كان رابط Vercel لا يزال يعطي 500 فالمشكلة خارج الكود المحلي الحالي، أي أن آخر commit أو deployment لم يصل بعد.
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="space-y-6">
+                <Card className="rounded-[2rem] border-white/10 bg-[#0b1228]">
+                  <CardHeader className="flex flex-row items-center justify-between pb-3">
+                    <CardTitle className="text-lg text-white">حالة النشر</CardTitle>
+                    <ShieldCheck className="h-5 w-5 text-[#2563eb]" />
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-right">
+                    <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+                      <p className="text-sm text-slate-400">Current Base URL</p>
+                      <p className="mt-2 break-all text-white" dir="ltr">{data.server.baseUrl}</p>
+                    </div>
+                    <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm leading-7 text-emerald-100">
+                      بما أن IBO Player قبل الملف الثابت <span dir="ltr">/ibo-test.m3u</span>، فالنسخة الحالية تعتمد رابطًا ثابتًا تحت <span dir="ltr">/ibo/testuser.m3u</span> بدل الاعتماد على <span dir="ltr">/get.php</span> في هذه المرحلة.
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <IboPlaylistCard baseUrl={data.server.baseUrl} username="testuser" />
+              </div>
             </section>
 
             <section className="grid gap-6 xl:grid-cols-2">
