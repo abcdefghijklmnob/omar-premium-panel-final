@@ -15,6 +15,7 @@ import { toast } from "sonner";
 
 import { AddStreamDialog } from "@/components/panel/add-stream-dialog";
 import { AddUserDialog } from "@/components/panel/add-user-dialog";
+import { IboAdminPanel } from "@/components/panel/ibo-admin-panel";
 import { IboPlaylistCard } from "@/components/panel/ibo-playlist-card";
 import { MovieManager } from "@/components/panel/movie-manager";
 import { SeriesManager } from "@/components/panel/series-manager";
@@ -55,7 +56,7 @@ import {
 
 const STORAGE_KEY = "omar-premium-admin-auth";
 
-type AdminView = "dashboard" | "movies" | "series";
+type AdminView = "dashboard" | "movies" | "series" | "ibo";
 
 const statusStyles: Record<string, string> = {
   Active: "bg-emerald-500/15 text-emerald-300 border-emerald-500/20",
@@ -346,15 +347,18 @@ const Index = () => {
               <div className="space-y-4 text-right">
                 <Badge className="rounded-full border border-[#6D4CFF]/25 bg-[#6D4CFF]/10 px-4 py-1 text-[#d2c9ff]">OMAR PREMIUM PANEL</Badge>
                 <div>
-                  <h1 className="text-3xl font-semibold text-white sm:text-4xl">لوحة IPTV + Movies + Series</h1>
+                  <h1 className="text-3xl font-semibold text-white sm:text-4xl">لوحة IPTV + IBO + Movies + Series</h1>
+
                   <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-400 sm:text-base">
                     تم تجهيز إدارة Live و Movies و Series داخل نفس لوحة الأدمن مع حفظ البيانات في Supabase وتجهيز أكشنات Xtream الأساسية.
                   </p>
                 </div>
                 <div className="flex flex-wrap justify-end gap-2">
                   <button type="button" onClick={() => setActiveView("dashboard")} className={navButtonClass(activeView === "dashboard")}>Dashboard</button>
+                  <button type="button" onClick={() => setActiveView("ibo")} className={navButtonClass(activeView === "ibo")}>IBO Panel</button>
                   <button type="button" onClick={() => setActiveView("movies")} className={navButtonClass(activeView === "movies")}>Movies</button>
                   <button type="button" onClick={() => setActiveView("series")} className={navButtonClass(activeView === "series")}>Series</button>
+
                 </div>
               </div>
 
@@ -565,6 +569,8 @@ const Index = () => {
             </section>
           </>
         ) : null}
+
+        {activeView === "ibo" ? <IboAdminPanel credentials={credentials} /> : null}
 
         {activeView === "movies" ? (
           <MovieManager

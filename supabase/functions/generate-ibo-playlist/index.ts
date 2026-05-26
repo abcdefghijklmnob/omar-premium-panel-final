@@ -8,18 +8,27 @@ import { json } from "../_shared/utils.ts";
 const BUCKET_NAME = "playlists";
 const CONTENT_TYPE = "application/x-mpegURL; charset=utf-8";
 
+type PlaylistRow = {
+  tvgId: string;
+  tvgName: string;
+  tvgLogo: string;
+  groupTitle: string;
+  displayName: string;
+  streamUrl: string;
+};
+
 function cleanText(value: string | null | undefined, fallback = "") {
   return (value ?? fallback).replace(/[\r\n]+/g, " ").replace(/"/g, "").trim() || fallback;
 }
 
-function buildM3u(streams: Array<any>) {
+function buildM3u(rows: PlaylistRow[]) {
   const lines = ["#EXTM3U"];
 
-  for (const stream of streams) {
+  for (const row of rows) {
     lines.push(
-      `#EXTINF:-1 tvg-id="${stream.id}" tvg-name="${cleanText(stream.name, "Channel")}" tvg-logo="${cleanText(stream.logo_url)}" group-title="${cleanText(stream.live_categories?.name, "Live TV")}",${cleanText(stream.name, "Channel")}`,
+      `#EXTINF:-1 tvg-id="${cleanText(row.tvgId)}" tvg-name="${cleanText(row.tvgName, "Channel")}" tvg-logo="${cleanText(row.tvgLogo)}" group-title="${cleanText(row.groupTitle, "Live TV")}",${cleanText(row.displayName, "Channel")}`,
     );
-    lines.push(cleanText(stream.stream_url));
+    lines.push(cleanText(row.streamUrl));
   }
 
   lines.push("");
@@ -57,7 +66,7 @@ serve(async (req) => {
 
     const { data: user, error: userError } = await supabase
       .from("iptv_users")
-      .select("id, username, status, expiry_date")
+      .select("id, username")
       .eq("username", targetUsername)
       .maybeSingle();
 
@@ -66,20 +75,94 @@ serve(async (req) => {
       return json({ error: "IPTV user not found" }, 404, corsHeaders);
     }
 
-    const { data: streams, error: streamsError } = await supabase
-      .from("live_streams")
-      .select("id, name, stream_url, logo_url, sort_order, live_categories(name)")
-      .eq("status", "Active")
-      .order("sort_order", { ascending: true })
-      .order("id", { ascending: true });
+    const { data: subscription, error: subscriptionError } = await supabase
+      .from("ibo_user_subscriptions")
+      .select("id, package_id, status, expiry_date")
+      .eq("user_id", user.id)
+      .maybeSingle();
 
-    if (streamsError) {
-      console.error("[generate-ibo-playlist] streams lookup failed", { message: streamsError.message });
-      return json({ error: streamsError.message }, 400, corsHeaders);
+    if (subscriptionError) {
+      console.error("[generate-ibo-playlist] subscription lookup failed", { targetUsername, message: subscriptionError.message });
+      return json({ error: subscriptionError.message }, 400, corsHeaders);
     }
 
-    const activeStreams = (streams ?? []).filter((stream: any) => cleanText(stream.stream_url) !== "");
-    const m3u = buildM3u(activeStreams);
+    if (!subscription?.package_id) {
+      return json({ error: "No package assigned to this user" }, 400, corsHeaders);
+    }
+
+    if (subscription.status && subscription.status !== "Active") {
+      return json({ error: `Subscription status is ${subscription.status}` }, 400, corsHeaders);
+    }
+
+    const [liveResult, vodResult, seriesEpisodeResult] = await Promise.all([
+      supabase
+        .from("ibo_package_live_streams")
+        .select("live_stream_id, live_streams(id, name, stream_url, logo_url, live_categories(name))")
+        .eq("package_id", subscription.package_id),
+      supabase
+        .from("ibo_package_vod_streams")
+        .select("vod_stream_id, vod_streams(id, title, stream_url, poster_url, vod_categories(name))")
+        .eq("package_id", subscription.package_id),
+      supabase
+        .from("ibo_package_series")
+        .select("series_id, series(title, poster_url), series_episodes!inner(id, episode_title, episode_number, stream_url, poster_url, status, season_id)")
+        .eq("package_id", subscription.package_id),
+    ]);
+
+    if (liveResult.error || vodResult.error || seriesEpisodeResult.error) {
+      const message = liveResult.error?.message || vodResult.error?.message || seriesEpisodeResult.error?.message || "Failed to load package content";
+      console.error("[generate-ibo-playlist] package content lookup failed", { message });
+      return json({ error: message }, 400, corsHeaders);
+    }
+
+    const rows: PlaylistRow[] = [];
+
+    for (const item of liveResult.data ?? []) {
+      const stream = item.live_streams as any;
+      if (!stream?.stream_url) continue;
+      rows.push({
+        tvgId: String(stream.id),
+        tvgName: cleanText(stream.name, "Live Channel"),
+        tvgLogo: cleanText(stream.logo_url),
+        groupTitle: cleanText(stream.live_categories?.name, "Live TV"),
+        displayName: cleanText(stream.name, "Live Channel"),
+        streamUrl: cleanText(stream.stream_url),
+      });
+    }
+
+    for (const item of vodResult.data ?? []) {
+      const stream = item.vod_streams as any;
+      if (!stream?.stream_url) continue;
+      rows.push({
+        tvgId: `vod-${stream.id}`,
+        tvgName: cleanText(stream.title, "Movie"),
+        tvgLogo: cleanText(stream.poster_url),
+        groupTitle: cleanText(stream.vod_categories?.name, "Movies"),
+        displayName: cleanText(stream.title, "Movie"),
+        streamUrl: cleanText(stream.stream_url),
+      });
+    }
+
+    for (const item of seriesEpisodeResult.data ?? []) {
+      const series = item.series as any;
+      const episode = item.series_episodes as any;
+      if (!episode?.stream_url || episode?.status !== "Active") continue;
+      const episodeTitle = `${cleanText(series?.title, "Series")} - E${episode.episode_number} ${cleanText(episode.episode_title, "Episode")}`;
+      rows.push({
+        tvgId: `series-${episode.id}`,
+        tvgName: episodeTitle,
+        tvgLogo: cleanText(episode.poster_url || series?.poster_url),
+        groupTitle: cleanText(series?.title, "Series"),
+        displayName: episodeTitle,
+        streamUrl: cleanText(episode.stream_url),
+      });
+    }
+
+    if (rows.length === 0) {
+      return json({ error: "No package content assigned to this user yet" }, 400, corsHeaders);
+    }
+
+    const m3u = buildM3u(rows);
     const storagePath = `ibo/${user.username}.m3u`;
 
     const { error: bucketError } = await supabase.storage.createBucket(BUCKET_NAME, {
@@ -114,7 +197,7 @@ serve(async (req) => {
       bucket_name: BUCKET_NAME,
       storage_path: storagePath,
       public_url: publicUrlData.publicUrl,
-      channel_count: activeStreams.length,
+      channel_count: rows.length,
       generated_at: now,
       updated_at: now,
     };
@@ -130,9 +213,16 @@ serve(async (req) => {
       return json({ error: saveError.message }, 400, corsHeaders);
     }
 
+    await supabase.from("ibo_activity_logs").insert({
+      action: "generate_playlist",
+      entity_type: "playlist",
+      entity_id: savedRow.id,
+      message: `Generated IBO playlist for ${user.username} with ${rows.length} items`,
+    });
+
     console.log("[generate-ibo-playlist] playlist generated", {
       username: user.username,
-      channelCount: activeStreams.length,
+      itemCount: rows.length,
       storagePath,
     });
 
