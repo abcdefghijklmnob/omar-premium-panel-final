@@ -1,65 +1,73 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 EXPORT_DIR="omar-premium-panel-export"
-rm -rf "$EXPORT_DIR"
-mkdir -p "$EXPORT_DIR"
-mkdir -p "$EXPORT_DIR/api/_lib"
-mkdir -p "$EXPORT_DIR/src/pages"
-mkdir -p "$EXPORT_DIR/src/lib"
-mkdir -p "$EXPORT_DIR/src/components/panel"
-mkdir -p "$EXPORT_DIR/src/components/ui"
-mkdir -p "$EXPORT_DIR/src/hooks"
+ZIP_NAME="${EXPORT_DIR}.zip"
 
-copy() {
+rm -rf "$EXPORT_DIR" "$ZIP_NAME"
+mkdir -p "$EXPORT_DIR"
+
+copy_file() {
   local src="$1"
   local dest="$EXPORT_DIR/$1"
   mkdir -p "$(dirname "$dest")"
   cp "$src" "$dest"
 }
 
-copy "package.json"
-copy "vercel.json"
-copy "vite.config.ts"
-copy "index.html"
-copy "postcss.config.js"
-copy "tailwind.config.ts"
-copy "components.json"
-copy "tsconfig.json"
-copy "tsconfig.app.json"
-copy "tsconfig.node.json"
-copy "eslint.config.js"
-copy "src/App.tsx"
-copy "src/main.tsx"
-copy "src/globals.css"
-copy "src/App.css"
-copy "src/vite-env.d.ts"
-copy "src/pages/Index.tsx"
-copy "src/pages/NotFound.tsx"
-copy "src/lib/panel-api.ts"
-copy "src/lib/utils.ts"
-copy "src/components/panel/add-stream-dialog.tsx"
-copy "src/components/panel/add-user-dialog.tsx"
-copy "src/components/panel/settings-card.tsx"
-copy "src/components/panel/stats-card.tsx"
-copy "src/components/ui/badge.tsx"
-copy "src/components/ui/button.tsx"
-copy "src/components/ui/card.tsx"
-copy "src/components/ui/dialog.tsx"
-copy "src/components/ui/input.tsx"
-copy "src/components/ui/label.tsx"
-copy "src/components/ui/table.tsx"
-copy "src/components/ui/textarea.tsx"
-copy "src/components/ui/toast.tsx"
-copy "src/components/ui/toaster.tsx"
-copy "src/components/ui/sonner.tsx"
-copy "src/components/ui/tooltip.tsx"
-copy "src/hooks/use-toast.ts"
-copy "api/_lib/supabase.ts"
-copy "api/admin-panel.ts"
-copy "api/get.ts"
-copy "api/player-api.ts"
-copy "api/xmltv.ts"
-copy "api/live-proxy.ts"
+copy_dir() {
+  local src="$1"
+  local dest="$EXPORT_DIR/$1"
+  mkdir -p "$(dirname "$dest")"
+  cp -R "$src" "$dest"
+}
 
-echo "Exported current OMAR PREMIUM PANEL files to: $EXPORT_DIR"
+# Root files
+for file in \
+  AI_RULES.md \
+  README.md \
+  package.json \
+  components.json \
+  eslint.config.js \
+  index.html \
+  postcss.config.js \
+  tailwind.config.ts \
+  tsconfig.json \
+  tsconfig.app.json \
+  tsconfig.node.json \
+  vercel.json \
+  vite.config.ts \
+  .env.example \
+  EXPORT_OMAR_PREMIUM_PANEL.sh
+  do
+  if [ -f "$file" ]; then
+    copy_file "$file"
+  fi
+done
+
+# Application folders
+for dir in src supabase public api docs
+  do
+  if [ -d "$dir" ]; then
+    copy_dir "$dir"
+  fi
+done
+
+# Optional lockfiles if present
+for lockfile in package-lock.json pnpm-lock.yaml yarn.lock bun.lockb
+  do
+  if [ -f "$lockfile" ]; then
+    copy_file "$lockfile"
+  fi
+done
+
+# Create a zip if the zip utility is available.
+if command -v zip >/dev/null 2>&1; then
+  (
+    cd "$EXPORT_DIR"
+    zip -qr "../$ZIP_NAME" .
+  )
+  echo "Exported full project to: $EXPORT_DIR and $ZIP_NAME"
+else
+  echo "Exported full project to: $EXPORT_DIR"
+  echo "zip utility not found, so only the folder export was created."
+fi
