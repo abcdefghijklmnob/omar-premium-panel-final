@@ -132,10 +132,13 @@ The following test data was successfully created in the database during verifica
 - The IBO panel is mounted from `src/pages/Index.tsx` as a separate tab.
 - The real IBO playlist generation path is **Supabase Storage-backed**, not the old `/get.php` flow.
 - Playlist output is package-scoped: the user should only receive content linked to their assigned IBO package.
+- 🔐 **Security fix:** Supabase URL and key are now read from environment variables (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) – no hardcoded values remain.
+- 🔧 **Temporary shim:** `src/types/supabase-js.d.ts` is a temporary type shim; it **must be removed** once `@supabase/supabase-js` is properly installed and typed.
+- ⚠️ **Critical UI note:** The current IBO UI (`src/components/panel/ibo-admin-panel.tsx`) is **not acceptable for production** – it must be professionally rebuilt with proper UX, accessibility, and maintainability. The underlying backend logic (package mapping, RPCs, playlist generation) can be reused, but the UI layer requires a complete redesign.
 
 ## Recommended next steps for the next developer
 1. Install dependencies and remove the temporary type shim.
-2. Move hardcoded Supabase publishable values into environment variables.
+2. Move hardcoded Supabase publishable values into environment variables (already migrated).
 3. Add explicit, least-privilege grants/RLS policies for the IBO tables.
 4. Add real IBO device heartbeat / callback ingestion if operational telemetry is required.
 5. Test full end-to-end flow in the UI:
